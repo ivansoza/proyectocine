@@ -37,9 +37,21 @@ class OrderSnackInline(admin.TabularInline):
     model = models.OrderSnack
     extra = 0
     autocomplete_fields = ('snack',)
-    readonly_fields = ('qty', 'price', 'line_total')
-    fields = ('snack', 'qty', 'price', 'line_total')
-    show_change_link = False
+
+    def get_fields(self, request, obj=None):
+        # campos que siempre queremos: snack, qty, price
+        fields = ['snack', 'qty', 'price']
+        # si la orden ya existe (en el change form), añadimos line_total
+        if obj and obj.pk:
+            fields.append('line_total')
+        return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        # line_total solo de solo lectura
+        readonly = []
+        if obj and obj.pk:
+            readonly.append('line_total')
+        return readonly
 
 
 # ───────────────────────────── CINEMAS ────────────────────────────────
