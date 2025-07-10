@@ -1,7 +1,7 @@
 # cinema/views.py
 from django.views.generic import TemplateView, DetailView, ListView
 from django.utils import timezone
-from .models import Customer, Order, OrderTicket, PaymentMethod, Showtime, SnackItem
+from .models import Customer, Order, OrderSnack, OrderTicket, PaymentMethod, Showtime, SnackItem
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views import View
 from django.urls import reverse
@@ -61,10 +61,52 @@ class SnackListView(ListView):
             .order_by("name")
         )
 
-class SnackDetailView(DetailView):
+from django.contrib import messages
+from .models import SnackItem, OrderSnack
+from django.contrib.auth.mixins import LoginRequiredMixin
+
+class SnackDetailView(LoginRequiredMixin, DetailView):
     model = SnackItem
     template_name = "snack_detail.html"
     context_object_name = "snack"
+    login_url = 'login'
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()  # el SnackItem
+        qty = int(request.POST.get('qty', 1))
+        if qty < 1:
+            qty = 1
+
+        # 1) Perfil de cliente
+        customer, _ = Customer.objects.get_or_create(user=request.user)
+
+        # 2) Orden PENDING (o la nueva si no existe)
+        order, _ = Order.objects.get_or_create(
+            customer=customer,
+            status=Order.Status.PENDING,
+            defaults={'total_amount': 0}
+        )
+
+        # 3) Añadimos o actualizamos la línea de snack
+        line, created = OrderSnack.objects.get_or_create(
+            order=order,
+            snack=self.object,
+            defaults={'qty': qty, 'price': self.object.price}
+        )
+        if not created:
+            line.qty += qty
+            line.save()
+
+        # 4) Recalculamos total (tickets + snacks)
+        total_tickets = sum(float(t.price) for t in order.order_tickets.all())
+        total_snacks  = sum(s.line_total() for s in order.order_snacks.all())
+        order.total_amount = total_tickets + total_snacks
+        order.save()
+
+        messages.success(request,
+            f"Añadiste {qty} × {self.object.name} a tu orden #{order.id}."
+        )
+        return redirect('snack_detail', pk=self.object.pk)
 
 from django.db import transaction
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -163,17 +205,34 @@ class OrderConfirmView(LoginRequiredMixin, View):
         order.paid_at = timezone.now()
         order.save()
         return redirect('order_success', order_id=order.id)
-    
+    # cinema/views.py
+
 class OrderSuccessView(LoginRequiredMixin, View):
     login_url = 'login'
     template_name = 'order_success.html'
 
     def get(self, request, order_id):
         order = get_object_or_404(
-            Order, id=order_id, customer=request.user.customer
+            Order, id=order_id, customer__user=request.user
         )
-        return render(request, self.template_name, {'order': order})
-    
+        has_tickets = order.order_tickets.exists()
+        has_snacks  = order.order_snacks.exists()
+
+        # <-- Aquí la corrección: -->
+        ticket_total = sum(
+            float(ot.ticket.price) for ot in order.order_tickets.all()
+        )
+        snack_total  = sum(
+            s.line_total() for s in order.order_snacks.all()
+        )
+
+        return render(request, self.template_name, {
+            'order': order,
+            'has_tickets':  has_tickets,
+            'has_snacks':   has_snacks,
+            'ticket_total': ticket_total,
+            'snack_total':  snack_total,
+        })
 
 class OrderListView(LoginRequiredMixin, ListView):
     model = Order
@@ -262,3 +321,38 @@ class TicketPDFView(LoginRequiredMixin, View):
             as_attachment=True,
             filename=f"ticket_{order.id}.pdf"
         )
+    
+
+
+
+
+class CancelOrderView(LoginRequiredMixin, View):
+    login_url = 'login'
+
+    def post(self, request, order_id):
+        order = get_object_or_404(
+            Order,
+            id=order_id,
+            customer__user=request.user,
+            status=Order.Status.PENDING
+        )
+
+        # Para cada relación OrderTicket, liberamos el ticket y borramos la línea
+        for ot in list(order.order_tickets.all()):
+            ticket = ot.ticket
+            # 1) Marcamos el ticket como cancelado y lo desvinculamos del cliente
+            ticket.status = ReservationStatus.CANCELED
+            ticket.customer = None
+            ticket.save()
+            # 2) Eliminamos la asociación con la orden
+            ot.delete()
+
+        # Finalmente marcamos la orden como cancelada
+        order.status = Order.Status.CANCELED
+        order.save()
+
+        messages.success(
+            request,
+            f"Orden #{order.id} cancelada y asientos liberados correctamente."
+        )
+        return redirect('orders_list')
