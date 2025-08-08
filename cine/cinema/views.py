@@ -181,6 +181,33 @@ class SeatSelectionView(LoginRequiredMixin, View):
 
         return redirect('order_confirm', order_id=order.id)
     
+from django.template.loader import render_to_string
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
+
+
+def send_order_confirmation_email(order):
+    """
+    Envía al usuario un email (HTML + texto plano) confirmando
+    que su orden fue pagada exitosamente.
+    """
+    user = order.customer.user
+    subject = f'Confirmación de orden #{order.id}'
+    from_email = settings.DEFAULT_FROM_EMAIL
+    to = [user.email]
+
+    context = {
+        'user': user,
+        'order': order,
+    }
+
+    # Renderizamos ambas versiones del correo
+    text_body = render_to_string('emails/order_confirmation.txt', context)
+    html_body = render_to_string('emails/order_confirmation.html', context)
+
+    msg = EmailMultiAlternatives(subject, text_body, from_email, to)
+    msg.attach_alternative(html_body, "text/html")
+    msg.send()
 
 class OrderConfirmView(LoginRequiredMixin, View):
     login_url = 'login'
@@ -199,14 +226,45 @@ class OrderConfirmView(LoginRequiredMixin, View):
         order = get_object_or_404(
             Order, id=order_id, customer=request.user.customer
         )
-        pm = request.POST.get('payment_method')
-        order.payment_method = pm
+        # Actualizamos método de pago y estado
+        order.payment_method = request.POST.get('payment_method')
         order.status = Order.Status.PAID
         order.paid_at = timezone.now()
         order.save()
-        return redirect('order_success', order_id=order.id)
-    # cinema/views.py
 
+        # Enviamos el correo de confirmación
+        send_order_confirmation_email(order)
+
+        # Redirigimos a la pantalla de éxito
+        return redirect('order_success', order_id=order.id)
+class OrderConfirmView(LoginRequiredMixin, View):
+    login_url = 'login'
+    template_name = 'order_confirm.html'
+
+    def get(self, request, order_id):
+        order = get_object_or_404(
+            Order, id=order_id, customer=request.user.customer
+        )
+        return render(request, self.template_name, {
+            'order': order,
+            'payment_choices': PaymentMethod.choices
+        })
+
+    def post(self, request, order_id):
+        order = get_object_or_404(
+            Order, id=order_id, customer=request.user.customer
+        )
+        # Actualizamos método de pago y estado
+        order.payment_method = request.POST.get('payment_method')
+        order.status = Order.Status.PAID
+        order.paid_at = timezone.now()
+        order.save()
+
+        # Enviamos el correo de confirmación
+        send_order_confirmation_email(order)
+
+        # Redirigimos a la pantalla de éxito
+        return redirect('order_success', order_id=order.id)
 class OrderSuccessView(LoginRequiredMixin, View):
     login_url = 'login'
     template_name = 'order_success.html'

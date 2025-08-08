@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <p>Hola {{ user.get_full_name }},</p>
+    <p>Tu orden <strong>#{{ order.id }}</strong> fue pagada correctamente el {{ order.paid_at|date:"d/m/Y H:i" }}.</p>
+    <ul>
+      <li>Total: <strong>${{ order.total_amount }}</strong> MXN</li>
+      <li>Método de pago: {{ order.get_payment_method_display }}</li>
+    </ul>
+    <p>¡Gracias por tu compra y esperamos verte pronto en el cine!</p>
+  </body>
+</html>

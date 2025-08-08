@@ -77,26 +77,26 @@ WSGI_APPLICATION = 'cine.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-      'default': {
-          'ENGINE': 'django.db.backends.sqlite3',
-          'NAME': BASE_DIR / 'db.sqlite3',
-      }
+       'default': {
+           'ENGINE': 'django.db.backends.sqlite3',
+           'NAME': BASE_DIR / 'db.sqlite3',
+       }
 }
 
 # DATABASES = {
-#      'default': {
-#          'ENGINE':   'django.db.backends.mysql',
-#          'NAME':     'u103558989_prueba1',    
-#          'USER':     'u103558989_prueba1',            
-#          'PASSWORD': 'UPTrep2025*',
-#          'HOST': 'srv1563.hstgr.io',
-#          'PORT':     '3306',
-#          'OPTIONS': {
-#              'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-#              'charset': 'utf8mb4',
-#          },
-#      }
-# }
+#       'default': {
+#           'ENGINE':   'django.db.backends.mysql',
+#           'NAME':     'u103558989_prueba1',    
+#           'USER':     'u103558989_prueba1',            
+#           'PASSWORD': 'UPTrep2025*',
+#           'HOST': 'srv1563.hstgr.io',
+#           'PORT':     '3306',
+#           'OPTIONS': {
+#               'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#               'charset': 'utf8mb4',
+#           },
+#       }
+#  }
 
 
 # Password validation
@@ -152,3 +152,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL          = 'login'
 LOGIN_REDIRECT_URL = 'home'    # o donde quieras llevar al usuario tras entrar
 LOGOUT_REDIRECT_URL= 'home'   # tras cerrar sesión
+
+
+EMAIL_BACKEND = "cine.mail_backends.DevSMTPBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER    = "ivansz123@gmail.com"
+EMAIL_HOST_PASSWORD= "fzvdzzmlmhzafmsk" 
